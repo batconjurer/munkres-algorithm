@@ -110,11 +110,11 @@ class Munkres(MunkresMatrix):
                 self.marked[row, col] = self.row_saturated[row] = self.col_saturated[col] = True
 
     def _remove_covers(self):
-        self.row_marked *= 0
-        self.col_marked *= 0
-        self.row_saturated *= 0
-        self.col_saturated *= 0
-        self.marked *= 0
+        self.row_marked *= False
+        self.col_marked *= False
+        self.row_saturated *= False
+        self.col_saturated *= False
+        self.marked *= False
 
     def _min_vertex_cover(self):
         """Find a minimum vertex cover of 0-induced graph"""
