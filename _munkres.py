@@ -37,6 +37,12 @@ import copy
 # Class that pre-processes various attributes of the cost matrix
 # for ease of access in the main algorithm
 
+def linear_sum_assignment(cost_matrix):
+    if cost_matrix.shape[0] <= cost_matrix.shape[1]:
+        return Munkres(copy.deepcopy(cost_matrix)).maximum_weight_matching()
+    else:
+        return Munkres(copy.deepcopy(cost_matrix).transpose()).maximum_weight_matching()
+
 
 class MunkresMatrix(object):
     """
@@ -88,7 +94,6 @@ class Munkres(MunkresMatrix):
     def __init__(self, matrix):
         matrix = -matrix
         MunkresMatrix.__init__(self, matrix)
-        self.match_size = min(self.matrix.shape[0], self.matrix.shape[1])
 
     def _maximal_matching(self):
         """Find a maximal matching greedily"""
@@ -189,10 +194,10 @@ class Munkres(MunkresMatrix):
             self._maximal_matching()
 
             # Find a minimum vertex cover of the 0-induced graph (Step 3 in Wikipedia)
-            self.min_vertex_cover()
+            self._min_vertex_cover()
 
             # If all rows are saturated, find the maximum matching and stop
-            if (self.shape[0] - self.row_marked.sum()) + self.col_marked.sum() == self.match_size:
+            if (self.shape[0] - self.row_marked.sum()) + self.col_marked.sum() == self.shape[0]:
                 self._aug_paths()
                 break
 
