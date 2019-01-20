@@ -1,6 +1,7 @@
 import pytest
 from _munkres import *
 import numpy as np
+from numpy.testing import assert_array_equal
 
 @pytest.fixture
 def matrix_for_tests():
@@ -10,10 +11,8 @@ def matrix_for_tests():
 def test_munkres_initialization_matrix_negation(matrix_for_tests):
     """Test that on initialization, all entries of cost matrix are negated"""
     munkres = Munkres(matrix_for_tests)
-    matrix = [[-5, 0, -2, 0], [-1, -3, -4, 0], [-2, -2, 0, -2]]
-    for i in range(3):
-        assert list(munkres.matrix[i]) == matrix[i]
-    assert munkres.matrix.shape == (3, 4)
+    matrix = np.array([[-5, 0, -2, 0], [-1, -3, -4, 0], [-2, -2, 0, -2]], dtype=float)
+    assert_array_equal(munkres.matrix, matrix)
 
 
 def test_maximal_matching_matrix_adjustment(matrix_for_tests):
@@ -23,12 +22,8 @@ def test_maximal_matching_matrix_adjustment(matrix_for_tests):
     """
     munkres = Munkres(matrix_for_tests)
     munkres._maximal_matching()
-    matrix = [[0, 5, 3, 5], [3, 1, 0, 4], [0, 0, 2, 0]]
-
-    for i in range(3):
-        assert list(munkres.matrix[i]) == matrix[i]
-
-    assert munkres.matrix.shape == (3, 4)
+    matrix = np.array([[0, 5, 3, 5], [3, 1, 0, 4], [0, 0, 2, 0]], dtype=float)
+    assert_array_equal(munkres.matrix, matrix)
 
 
 def test_maximal_matching_marked(matrix_for_tests):
@@ -38,12 +33,8 @@ def test_maximal_matching_marked(matrix_for_tests):
     """
     munkres = Munkres(matrix_for_tests)
     munkres._maximal_matching()
-    marked = [[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0]]
-
-    for i in range(3):
-        assert list(munkres.marked.astype(int)[i]) == marked[i]
-
-    assert munkres.marked.shape == (3, 4)
+    marked = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0]], dtype=bool)
+    assert_array_equal(munkres.marked, marked)
 
 
 def test_row_and_col_saturated_after_maximal_matching(matrix_for_tests):
@@ -53,8 +44,8 @@ def test_row_and_col_saturated_after_maximal_matching(matrix_for_tests):
     """
     munkres = Munkres(matrix_for_tests)
     munkres._maximal_matching()
-    assert list(munkres.row_saturated) == [True, True, True]
-    assert list(munkres.col_saturated) == [True, True, True, False]
+    assert_array_equal(munkres.row_saturated, np.array([True, True, True], dtype=bool))
+    assert_array_equal(munkres.col_saturated, np.array([True, True, True, False], dtype=bool))
 
 
 def test_remove_covers(matrix_for_tests):
@@ -68,19 +59,19 @@ def test_remove_covers(matrix_for_tests):
     munkres.marked += True
     munkres.row_marked += True
     munkres.col_marked += True
-    assert np.all(munkres.marked)
-    assert munkres.marked.shape == (3, 4)
-    assert list(munkres.col_saturated) == [True, True, True, True]
-    assert list(munkres.row_saturated) == [True, True, True]
-    assert list(munkres.col_marked) == [True, True, True, True]
-    assert list(munkres.row_marked) == [True, True, True]
+
+    assert_array_equal(munkres.marked, np.ones((3, 4), dtype=bool))
+    assert_array_equal(munkres.col_saturated, np.array([True, True, True, True],dtype=bool))
+    assert_array_equal(munkres.row_saturated, np.array([True, True, True], dtype=bool))
+    assert_array_equal(munkres.col_marked, np.array([True, True, True, True], dtype=bool))
+    assert_array_equal(munkres.row_marked, np.array([True, True, True], dtype=bool))
+
     munkres._remove_covers()
-    assert not np.any(munkres.marked)
-    assert munkres.marked.shape == (3, 4)
-    assert list(munkres.col_saturated) == [False, False, False, False]
-    assert list(munkres.row_saturated) == [False, False, False]
-    assert list(munkres.col_marked) == [False, False, False, False]
-    assert list(munkres.row_marked) == [False, False, False]
+    assert_array_equal(munkres.marked, np.zeros((3, 4), dtype=bool))
+    assert_array_equal(munkres.col_saturated, np.array([False, False, False, False], dtype=bool))
+    assert_array_equal(munkres.row_saturated, np.array([False, False, False], dtype=bool))
+    assert_array_equal(munkres.col_marked, np.array([False, False, False, False], dtype=bool))
+    assert_array_equal(munkres.row_marked, np.array([False, False, False], dtype=bool))
 
 
 def test_aug_paths_1():
@@ -99,14 +90,12 @@ def test_aug_paths_1():
     munkres.col_saturated = np.array([True, True, True, False, False], dtype=bool)
 
     munkres._aug_paths()
-    marked = [[0, 0, 0, 0, 1],
-              [0, 0, 0, 1, 0],
-              [0, 0, 1, 0, 0],
-              [0, 1, 0, 0, 0],
-              [1, 0, 0, 0, 0]]
-    for i in range(5):
-        assert list(munkres.marked.astype(int)[i]) == marked[i]
-    assert munkres.marked.shape == (5, 5)
+    marked = np.array([[0, 0, 0, 0, 1],
+                       [0, 0, 0, 1, 0],
+                       [0, 0, 1, 0, 0],
+                       [0, 1, 0, 0, 0],
+                       [1, 0, 0, 0, 0]], dtype=bool)
+    assert_array_equal(munkres.marked, marked)
 
 
 def test_aug_paths_2():
@@ -125,15 +114,12 @@ def test_aug_paths_2():
     munkres.col_saturated = np.array([True, True, True, False, False], dtype=bool)
 
     munkres._aug_paths()
-    marked = [[0, 1, 0, 0, 0],
-              [0, 0, 0, 1, 0],
-              [0, 0, 1, 0, 0],
-              [1, 0, 0, 0, 0],
-              [0, 0, 0, 0, 0]]
-    for i in range(5):
-        assert list(munkres.marked.astype(int)[i]) == marked[i]
-
-    assert munkres.marked.shape == (5, 5)
+    marked = np.array([[0, 1, 0, 0, 0],
+                       [0, 0, 0, 1, 0],
+                       [0, 0, 1, 0, 0],
+                       [1, 0, 0, 0, 0],
+                       [0, 0, 0, 0, 0]], dtype=bool)
+    assert_array_equal(munkres.marked, marked)
 
 
 def test_aug_paths_3():
@@ -153,16 +139,13 @@ def test_aug_paths_3():
     munkres.col_saturated = np.array([True, False, True, True, False, False], dtype=bool)
 
     munkres._aug_paths()
-    marked = [[1, 0, 0, 0, 0, 0],
-              [0, 1, 0, 0, 0, 0],
-              [0, 0, 0, 0, 1, 0],
-              [0, 0, 1, 0, 0, 0],
-              [0, 0, 0, 1, 0, 0]]
+    marked = np.array([[1, 0, 0, 0, 0, 0],
+                       [0, 1, 0, 0, 0, 0],
+                       [0, 0, 0, 0, 1, 0],
+                       [0, 0, 1, 0, 0, 0],
+                       [0, 0, 0, 1, 0, 0]], dtype=bool)
 
-    for i in range(5):
-        assert list(munkres.marked[i].astype(int)) == marked[i]
-
-    assert munkres.marked.shape == (5, 6)
+    assert_array_equal(munkres.marked, marked)
 
 
 def test_max_weight_matching_1(matrix_for_tests):

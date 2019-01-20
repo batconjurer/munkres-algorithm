@@ -1,7 +1,6 @@
 import numpy as np
-from functools import partial
 import copy
-
+from collections import deque, namedtuple
 
 """
  Algorithm that solves the weighted assignment problem (or linear sum assignment problem) for 
@@ -33,9 +32,8 @@ import copy
  
 """
 
+Node = namedtuple('Node', 'previous next_row next_col')
 
-# Class that pre-processes various attributes of the cost matrix
-# for ease of access in the main algorithm
 
 def linear_sum_assignment(cost_matrix):
     if cost_matrix.shape[0] <= cost_matrix.shape[1]:
@@ -147,6 +145,64 @@ class Munkres(object):
 
         # If no extension of augmented paths could be found
         return path_row[:-1], path_col[:-1]
+
+    def _aug_path_non_recursive(self, row):
+        """"
+        Recursively search for augmenting paths starting at row vertex 'row' in the
+        0-induced graph.
+        """
+
+        queue = deque(Node(previous=None, next_col=None, next_row=row))
+        visited_columns = set([])
+        last_col = None
+        path_row = []
+        path_col = []
+
+        # We proceed to search for an augmented path via a breadth-first search approach
+        while queue:
+            current_node = queue.popleft()
+
+            # We now check every column to see if we can extend tentative augmented path with
+            # column vertex. We iterate over column vertex neighbors of the 0-induced graph
+            for col in np.where(self.matrix[current_node.next_row] == 0)[0]:
+
+                # We do not check vertices already on a tentative path
+                if col in visited_columns:
+                    continue
+
+                # If col vertex is saturated, it we check to see if it can extend tentative path
+                if self.col_saturated[col]:
+
+                    # We find row vertex it is matched with
+                    row_index = np.argmax(self.marked[:, col])
+                    visited_columns.add(col)
+
+                    # We extend the tentative augmented path via linked list
+                    queue.append(Node(previous=current_node, next_row=row_index, next_col=col))
+
+                else:
+
+                    # We have found the end of an augmented path. We add column vertex.
+                    last_col = Node(previous=current_node, next_row=None, next_col=col)
+                    break
+
+        # Recreate augmented path from linked list if possible
+        if last_col is not None:
+
+            # add final column vertex
+            path_col.append(last_col.next_col)
+            last_col = last_col.previous
+
+            # iterate back through linked list
+            while last_col.previous is not None:
+                path_row.append(last_col.next_row)
+                path_col.append(last_col.next_col)
+                last_col = last_col.previous
+
+            # add initial row vertex
+            path_row.append(last_col.next_row)
+
+        return path_row, path_col
 
     def _maximum_weight_matching(self):
         """Main algorithm. Runs the Hungarian Algorithm."""
