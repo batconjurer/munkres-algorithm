@@ -7,20 +7,7 @@ def matrix_for_tests():
     return np.array([[5, 0, 2, 0], [1, 3, 4, 0], [2, 2, 0, 2]])
 
 
-def test_matrix_pattern(matrix_for_tests):
-    """
-    Test that on initialization, the matrix that encodes non-zero entries is
-    compute correctly
-    """
-    munkres_matrix = MunkresMatrix(matrix_for_tests)
-
-    matrix_pattern = [[1, 0, 1, 0], [1, 1, 1, 0], [1, 1, 0, 1]]
-    for i in range(3):
-        assert list(munkres_matrix.matrix_pattern[i]) == matrix_pattern[i]
-    assert munkres_matrix.matrix_pattern.shape == (3, 4)
-
-
-def test_munkres_initialization(matrix_for_tests):
+def test_munkres_initialization_matrix_negation(matrix_for_tests):
     """Test that on initialization, all entries of cost matrix are negated"""
     munkres = Munkres(matrix_for_tests)
     matrix = [[-5, 0, -2, 0], [-1, -3, -4, 0], [-2, -2, 0, -2]]
@@ -54,7 +41,7 @@ def test_maximal_matching_marked(matrix_for_tests):
     marked = [[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0]]
 
     for i in range(3):
-        assert list(munkres.marked[i]) == marked[i]
+        assert list(munkres.marked.astype(int)[i]) == marked[i]
 
     assert munkres.marked.shape == (3, 4)
 
@@ -96,20 +83,120 @@ def test_remove_covers(matrix_for_tests):
     assert list(munkres.row_marked) == [False, False, False]
 
 
+def test_aug_paths_1():
 
-"""
-def test_max_weight_matching(matrix_for_tests):
+    munkres = Munkres(np.array([[0, 0, 0, 0, 0],
+                                [0, 0, 0, 0, 1],
+                                [0, 0, 0, 1, 1],
+                                [0, 0, 1, 1, 1],
+                                [0, 1, 1, 1, 1]], dtype=float))
+    munkres.marked = np.array([[1, 0, 0, 0, 0],
+                               [0, 1, 0, 0, 0],
+                               [0, 0, 1, 0, 0],
+                               [0, 0, 0, 0, 0],
+                               [0, 0, 0, 0, 0]], dtype=bool)
+    munkres.row_saturated = np.array([True, True, True, False, False], dtype=bool)
+    munkres.col_saturated = np.array([True, True, True, False, False], dtype=bool)
+
+    munkres._aug_paths()
+    marked = [[0, 0, 0, 0, 1],
+              [0, 0, 0, 1, 0],
+              [0, 0, 1, 0, 0],
+              [0, 1, 0, 0, 0],
+              [1, 0, 0, 0, 0]]
+    for i in range(5):
+        assert list(munkres.marked.astype(int)[i]) == marked[i]
+    assert munkres.marked.shape == (5, 5)
+
+
+def test_aug_paths_2():
+    munkres = Munkres(np.array([[0, 0, 0, 0, 0],
+                                [0, 0, 0, 0, 1],
+                                [0, 0, 0, 1, 1],
+                                [0, 0, 1, 1, 1],
+                                [1, 1, 1, 1, 1]], dtype=float))
+    munkres.marked = np.array([[1, 0, 0, 0, 0],
+                               [0, 1, 0, 0, 0],
+                               [0, 0, 1, 0, 0],
+                               [0, 0, 0, 0, 0],
+                               [0, 0, 0, 0, 0]], dtype=bool)
+
+    munkres.row_saturated = np.array([True, True, True, False, False], dtype=bool)
+    munkres.col_saturated = np.array([True, True, True, False, False], dtype=bool)
+
+    munkres._aug_paths()
+    marked = [[0, 1, 0, 0, 0],
+              [0, 0, 0, 1, 0],
+              [0, 0, 1, 0, 0],
+              [1, 0, 0, 0, 0],
+              [0, 0, 0, 0, 0]]
+    for i in range(5):
+        assert list(munkres.marked.astype(int)[i]) == marked[i]
+
+    assert munkres.marked.shape == (5, 5)
+
+
+def test_aug_paths_3():
+    munkres = Munkres(np.array([[0, 1, 1, 1, 1, 1],
+                                [0, 0, 0, 1, 1, 1],
+                                [0, 1, 1, 0, 0, 1],
+                                [1, 1, 0, 0, 1, 0],
+                                [1, 1, 1, 0, 1, 1]], dtype=float))
+
+    munkres.marked = np.array([[0, 0, 0, 0, 0, 0],
+                               [1, 0, 0, 0, 0, 0],
+                               [0, 0, 0, 1, 0, 0],
+                               [0, 0, 1, 0, 0, 0],
+                               [0, 0, 0, 0, 0, 0]], dtype=bool)
+
+    munkres.row_saturated = np.array([False, True, True, True, False], dtype=bool)
+    munkres.col_saturated = np.array([True, False, True, True, False, False], dtype=bool)
+
+    munkres._aug_paths()
+    marked = [[1, 0, 0, 0, 0, 0],
+              [0, 1, 0, 0, 0, 0],
+              [0, 0, 0, 0, 1, 0],
+              [0, 0, 1, 0, 0, 0],
+              [0, 0, 0, 1, 0, 0]]
+
+    for i in range(5):
+        assert list(munkres.marked[i].astype(int)) == marked[i]
+
+    assert munkres.marked.shape == (5, 6)
+
+
+def test_max_weight_matching_1(matrix_for_tests):
+    """ Test that the correct maximum weight matching is found"""
     # Fully saturated case, wide
-    munk_one = _get_matrix(matrix_for_tests)
-    # Not saturated case, wide
-    munk_two = _get_matrix(np.array([[5, 0, 2, 0], [1, 3, 4, 0], [2, 0, 0, 0]], dtype=float))
-    # Not saturated case, tall
-    munk_three = _get_matrix(matrix_for_tests, [3, 1, 1])
-    # Saturated case tall
-    munk_four = _get_matrix(matrix_for_tests, [3, 1, 2])
+    munkres_one = linear_sum_assignment(matrix_for_tests)
+    assert set(munkres_one) == {(0, 0), (1, 2), (2, 1)}
 
-    assert set(munk_one.maximum_weight_matching()) == {(0, 0), (1, 2), (2, 1)}
-    assert set(munk_two.maximum_weight_matching()) == {(0, 0), (1, 2)}
-    assert set(munk_three.maximum_weight_matching()) == {(0, 0), (0, 2), (1, 1), (2, 3)}
-    assert set(munk_four.maximum_weight_matching()) == {(0, 0), (1, 2), (2, 1), (2, 3)}
-"""
+
+def test_max_weight_matching_2():
+    # Not saturated case, wide
+    munkres_two = linear_sum_assignment(np.array([[5, 0, 2, 0],
+                                                  [1, 3, 4, 0],
+                                                  [2, 0, 0, 0]], dtype=float))
+    assert set(munkres_two) == {(0, 0), (1, 2), (2, 1)}
+
+
+def test_max_weight_matching_3():
+    # Not saturated case, tall
+    munkres_three = linear_sum_assignment(np.array([[5, 0, 2, 0],
+                                                    [5, 0, 2, 0],
+                                                    [5, 0, 2, 0],
+                                                    [1, 3, 4, 0],
+                                                    [2, 2, 0, 2]], dtype=float))
+    assert set(munkres_three) == {(0, 0), (1, 2), (3, 1), (4, 3)}
+
+
+def test_max_weight_matching_4():
+    # Saturated case tall
+    munkres_four = linear_sum_assignment(np.array([[5, 0, 2, 0],
+                                                   [5, 0, 2, 0],
+                                                   [5, 0, 2, 0],
+                                                   [1, 3, 4, 0],
+                                                   [2, 2, 0, 2],
+                                                   [2, 2, 0, 2]], dtype=float))
+
+    assert set(munkres_four) == {(0, 0), (3, 2), (4, 1), (5, 3)}

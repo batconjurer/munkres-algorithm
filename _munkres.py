@@ -39,61 +39,24 @@ import copy
 
 def linear_sum_assignment(cost_matrix):
     if cost_matrix.shape[0] <= cost_matrix.shape[1]:
-        return Munkres(copy.deepcopy(cost_matrix)).maximum_weight_matching()
+        return Munkres(copy.deepcopy(cost_matrix), False)._maximum_weight_matching()
     else:
-        return Munkres(copy.deepcopy(cost_matrix).transpose()).maximum_weight_matching()
+        return Munkres(copy.deepcopy(cost_matrix).transpose(), True)._maximum_weight_matching()
 
 
-class MunkresMatrix(object):
-    """
-    Class that pre-processes various attributes of the cost matrix
-    for ease of access in the main algorithm
-    """
+class Munkres(object):
+    """Class for finding maximum weight matchings and minimum vertex covers in bipartite graph"""
 
-    def __init__(self, matrix):
+    def __init__(self, matrix, transposed=False):
+        matrix = -matrix
         self.shape = matrix.shape
         self.marked = np.zeros(self.shape, dtype=bool)
         self.row_saturated = np.zeros(self.shape[0], dtype=bool)
         self.col_saturated = np.zeros(self.shape[1], dtype=bool)
         self.row_marked = np.zeros(self.shape[0], dtype=bool)
         self.col_marked = np.zeros(self.shape[1], dtype=bool)
-        self.non_zero_pairs = list(zip(*np.where(matrix != 0)))
         self.matrix = matrix
-        self._columns = {}
-        self._rows = {}
-        self._make_rows_and_columns()
-        self.matrix_pattern = (self.matrix != 0).astype(int)
-
-    def _to_sort_column(self, row, col):
-        return -self.matrix[row, col]
-
-    def _to_sort_row(self, col, row):
-        return -self.matrix[row, col]
-
-    def _make_rows_and_columns(self):
-        for pair in self.non_zero_pairs:
-            if self._rows.get(pair[0]) is not None:
-                self._rows[pair[0]].append(pair[1])
-            else:
-                self._rows[pair[0]] = [pair[1]]
-            if self._columns.get(pair[1]) is not None:
-                self._columns[pair[1]].append(pair[0])
-            else:
-                self._columns[pair[1]] = [pair[0]]
-        for key in self._rows:
-            self._rows[key].sort(key=partial(self._to_sort_row, row=key))
-            self._rows[key] = np.array(self._rows[key], dtype=int)
-        for key in self._columns:
-            self._columns[key].sort(key=partial(self._to_sort_column, col=key))
-            self._columns[key] = np.array(self._columns[key], dtype=int)
-
-
-class Munkres(MunkresMatrix):
-    """Class for finding maximum weight matchings and minimum vertex covers in bipartite graph"""
-
-    def __init__(self, matrix):
-        matrix = -matrix
-        MunkresMatrix.__init__(self, matrix)
+        self.transposed = transposed
 
     def _maximal_matching(self):
         """Find a maximal matching greedily"""
@@ -132,11 +95,11 @@ class Munkres(MunkresMatrix):
             if self.col_marked.sum() == found:
                 return
 
-    def _aug_paths(self, forbidden_col=None):
+    def _aug_paths(self):
         """Find an augmenting path if one exists from maximal matching."""
-        # Rows checked for augmenting paths
+        # Check unsaturated row vertices for augmenting paths
         for row in np.where(self.row_saturated == False)[0]:
-            path_row, path_col = self._aug_path(row, forbidden_col=forbidden_col)
+            path_row, path_col = self._aug_path(row)
             if not path_col:
                 continue
             if not len(path_row + path_col) % 2:
@@ -146,30 +109,31 @@ class Munkres(MunkresMatrix):
                 self.marked[path_row[-1], path_col[-1]] = 1
                 self.row_saturated[path_row[0]] = self.col_saturated[path_col[-1]] = True
 
-    def _aug_path(self, row, path_row=None, path_col=None, forbidden_col=None):
+    def _aug_path(self, row, path_row=None, path_col=None):
+        """"
+        Recursively search for augmenting paths starting at row vertex 'row' in the
+        0-induced graph.
+        """
         if path_row is None:
             path_row = []
         if path_col is None:
             path_col = []
 
         # We now check every column to see if we can extend augmented path with column vertex
-        if self._rows.get(row) is None:
-            return [], []
-
-        for col in self._rows[row]:
+        # We iterate over column vertex neighbors of the 0-induced graph
+        for col in np.where(self.matrix[row] == 0)[0]:
             # We do not check vertices already on path
-            if col in path_col:
+            if col in path_col:  # TODO: maybe not use list but set instead
                 continue
-            if col == forbidden_col:
-                continue
-            # If vertex is marked, it we check to see if it can extend path
+
+            # If col vertex is saturated, it we check to see if it can extend path
             if self.col_saturated[col]:
                 # We find row vertex it is matched with
                 row_index = np.argmax(self.marked[:, col])
 
                 # We now try to find augmented path from newly found row vertex
                 aug_row, aug_col = self._aug_path(row_index, path_row+[row],
-                                                  path_col+[col], forbidden_col)
+                                                  path_col+[col])
 
                 # If we could not reach augmented path, continue to next vertex
                 if not len(aug_col) or self.col_saturated[aug_col[-1]]:
@@ -184,7 +148,7 @@ class Munkres(MunkresMatrix):
         # If no extension of augmented paths could be found
         return path_row[:-1], path_col[:-1]
 
-    def maximum_weight_matching(self):
+    def _maximum_weight_matching(self):
         """Main algorithm. Runs the Hungarian Algorithm."""
 
         while True:
@@ -210,5 +174,9 @@ class Munkres(MunkresMatrix):
 
             # Reset process and run again
             self._remove_covers()
-        self.marked *= self.matrix_pattern
-        return list(zip(*np.where(self.marked > 0)))
+
+        # If we transposed the input so that it was wide, undo that now before returning answer.
+        if self.transposed:
+            return list(zip(*np.where(self.marked.transpose() > 0)))
+        else:
+            return list(zip(*np.where(self.marked.transpose() > 0)))
