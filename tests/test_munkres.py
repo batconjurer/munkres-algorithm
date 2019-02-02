@@ -75,12 +75,17 @@ def test_remove_covers(matrix_for_tests):
 
 
 def test_aug_paths_1():
-
+    """ Test the algorithm that finds a maximum matching from a maximal matching via augmenting
+        paths
+    """
+    # Original biadjacency matrix where zeros represent an edge and non-zero values represent
+    # non-edges
     munkres = Munkres(np.array([[0, 0, 0, 0, 0],
                                 [0, 0, 0, 0, 1],
                                 [0, 0, 0, 1, 1],
                                 [0, 0, 1, 1, 1],
                                 [0, 1, 1, 1, 1]], dtype=float))
+    # A maximal matching that is not maximum
     munkres.marked = np.array([[1, 0, 0, 0, 0],
                                [0, 1, 0, 0, 0],
                                [0, 0, 1, 0, 0],
@@ -90,6 +95,7 @@ def test_aug_paths_1():
     munkres.col_saturated = np.array([True, True, True, False, False], dtype=bool)
 
     munkres._aug_paths()
+    # The resulting (unique) maximum matching
     marked = np.array([[0, 0, 0, 0, 1],
                        [0, 0, 0, 1, 0],
                        [0, 0, 1, 0, 0],
@@ -114,8 +120,8 @@ def test_aug_paths_2():
     munkres.col_saturated = np.array([True, True, True, False, False], dtype=bool)
 
     munkres._aug_paths()
-    marked = np.array([[0, 1, 0, 0, 0],
-                       [0, 0, 0, 1, 0],
+    marked = np.array([[0, 0, 0, 1, 0],
+                       [0, 1, 0, 0, 0],
                        [0, 0, 1, 0, 0],
                        [1, 0, 0, 0, 0],
                        [0, 0, 0, 0, 0]], dtype=bool)
@@ -182,4 +188,5 @@ def test_max_weight_matching_4():
                                                    [2, 2, 0, 2],
                                                    [2, 2, 0, 2]], dtype=float))
 
-    assert set(munkres_four) == {(0, 0), (3, 2), (4, 1), (5, 3)}
+    assert set(munkres_four) == {(0, 0), (3, 2), (4, 3), (5, 1)}
+

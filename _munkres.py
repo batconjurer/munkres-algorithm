@@ -3,8 +3,8 @@ import copy
 from collections import deque, namedtuple
 
 """
- Algorithm that solves the weighted assignment problem (or linear sum assignment problem) for 
- bipartite graphs whose weighted bi-adjacency matrices are not necessarily square.
+ Algorithm that solves the maximum weighted assignment problem (or linear sum assignment problem) 
+ for bipartite graphs whose weighted bi-adjacency matrices are not necessarily square.
  
  Definitions: 
     Many times we are performing operations on the graph whose bi-adjacency matrix is formed by
@@ -103,63 +103,26 @@ class Munkres(object):
             if not len(path_row + path_col) % 2:
                 for i in range(len(path_row) - 1):
                     self.marked[path_row[i], path_col[i]] = 1
-                    self.marked[path_row[i+1], path_col[i]] = 0
+                    self.marked[path_row[i], path_col[i + 1]] = 0
                 self.marked[path_row[-1], path_col[-1]] = 1
-                self.row_saturated[path_row[0]] = self.col_saturated[path_col[-1]] = True
+                self.row_saturated[path_row[-1]] = self.col_saturated[path_col[0]] = True
 
-    def _aug_path(self, row, path_row=None, path_col=None):
-        """"
-        Recursively search for augmenting paths starting at row vertex 'row' in the
-        0-induced graph.
-        """
-        if path_row is None:
-            path_row = []
-        if path_col is None:
-            path_col = []
-
-        # We now check every column to see if we can extend augmented path with column vertex
-        # We iterate over column vertex neighbors of the 0-induced graph
-        for col in np.where(self.matrix[row] == 0)[0]:
-            # We do not check vertices already on path
-            if col in path_col:  # TODO: maybe not use list but set instead
-                continue
-
-            # If col vertex is saturated, it we check to see if it can extend path
-            if self.col_saturated[col]:
-                # We find row vertex it is matched with
-                row_index = np.argmax(self.marked[:, col])
-
-                # We now try to find augmented path from newly found row vertex
-                aug_row, aug_col = self._aug_path(row_index, path_row+[row],
-                                                  path_col+[col])
-
-                # If we could not reach augmented path, continue to next vertex
-                if not len(aug_col) or self.col_saturated[aug_col[-1]]:
-                    continue
-                else:
-                    # If we succeeded in finding augmented path, return it
-                    return aug_row, aug_col
-            else:
-                # We have found the end of an augmented path. We add column vertex.
-                return path_row+[row], path_col+[col]
-
-        # If no extension of augmented paths could be found
-        return path_row[:-1], path_col[:-1]
-
-    def _aug_path_non_recursive(self, row):
+    def _aug_path(self, row):
         """"
         Recursively search for augmenting paths starting at row vertex 'row' in the
         0-induced graph.
         """
 
-        queue = deque(Node(previous=None, next_col=None, next_row=row))
+        queue = deque()
+        queue.append(Node(previous=None, next_col=None, next_row=row))
         visited_columns = set([])
         last_col = None
         path_row = []
         path_col = []
+        found = False
 
         # We proceed to search for an augmented path via a breadth-first search approach
-        while queue:
+        while queue and not found:
             current_node = queue.popleft()
 
             # We now check every column to see if we can extend tentative augmented path with
@@ -184,6 +147,7 @@ class Munkres(object):
 
                     # We have found the end of an augmented path. We add column vertex.
                     last_col = Node(previous=current_node, next_row=None, next_col=col)
+                    found = True
                     break
 
         # Recreate augmented path from linked list if possible
