@@ -5,8 +5,8 @@
 # License: 3-clause BSD
 
 import numpy as np
-import copy
 from collections import deque, namedtuple
+from recordclass import recordclass
 
 """
  Algorithm that solves the minimum / maximum weighted assignment problem (or linear sum assignment problem) 
@@ -73,6 +73,12 @@ Returns
 """
 
 Node = namedtuple('Node', 'previous next_row next_col')
+State = recordclass('State', 'marked '
+                             'row_saturated '
+                             'col_saturated '
+                             'row_marked '
+                             'col_marked '
+                             'matrix')
 
 
 def linear_sum_assignment(cost_matrix, maximize=False):
@@ -102,171 +108,175 @@ def linear_sum_assignment(cost_matrix, maximize=False):
 
     # The internal algorithm assumes that there are at least as many columns as rows
     if cost_matrix.shape[0] <= cost_matrix.shape[1]:
-        return Munkres(cost_matrix,
-                       transposed=False,
-                       maximize=maximize)._optimal_weight_matching()
+        return _optimal_weight_matching(cost_matrix,
+                                        transposed=False,
+                                        maximize=maximize)
     else:
-        return Munkres(cost_matrix.transpose(),
-                       transposed=True,
-                       maximize=maximize)._optimal_weight_matching()
+        return _optimal_weight_matching(cost_matrix.transpose(),
+                                        transposed=True,
+                                        maximize=maximize)
 
 
-class Munkres(object):
-    """Class for finding maximum weight matchings and minimum vertex covers in bipartite graph"""
+def maximal_matching(state):
+    """Find a maximal matching greedily"""
 
-    def __init__(self, matrix, transposed=False, maximize=False):
-        if maximize:
-            matrix = -matrix
-        self.shape = matrix.shape
-        self.marked = np.zeros(self.shape, dtype=bool)
-        self.row_saturated = np.zeros(self.shape[0], dtype=bool)
-        self.col_saturated = np.zeros(self.shape[1], dtype=bool)
-        self.row_marked = np.zeros(self.shape[0], dtype=bool)
-        self.col_marked = np.zeros(self.shape[1], dtype=bool)
-        self.matrix = matrix
-        self.transposed = transposed
+    # For each row, find the smallest element in that row and
+    # subtract it from each element in its row.
+    state.matrix -= state.matrix.min(axis=1)[:, np.newaxis]
 
-    def _maximal_matching(self):
-        """Find a maximal matching greedily"""
+    # Iterating through each zero-valued matrix entry, if neither the row or column of the
+    # entry has been marked, add entry to the matching and mark the its row and column as
+    # being assigned.
+    for row, col in zip(*np.where(state.matrix == 0)):
+        if not state.row_saturated[row] and not state.col_saturated[col]:
+            state.marked[row, col] = state.row_saturated[row] = state.col_saturated[col] = True
 
-        # For each row, find the smallest element in that row and
-        # subtract it from each element in its row.
-        self.matrix -= self.matrix.min(axis=1)[:, np.newaxis]
 
-        # Iterating through each zero-valued matrix entry, if neither the row or column of the
-        # entry has been marked, add entry to the matching and mark the its row and column as
-        # being assigned.
-        for row, col in zip(*np.where(self.matrix == 0)):
-            if not self.row_saturated[row] and not self.col_saturated[col]:
-                self.marked[row, col] = self.row_saturated[row] = self.col_saturated[col] = True
+def remove_covers(state):
+    state.row_marked *= False
+    state.col_marked *= False
+    state.row_saturated *= False
+    state.col_saturated *= False
+    state.marked *= False
 
-    def _remove_covers(self):
-        self.row_marked *= False
-        self.col_marked *= False
-        self.row_saturated *= False
-        self.col_saturated *= False
-        self.marked *= False
 
-    def _min_vertex_cover(self):
-        """Find a minimum vertex cover of 0-induced graph"""
+def min_vertex_cover(state):
+    """Find a minimum vertex cover of 0-induced graph"""
 
-        # Start with all unsaturated row vertices
-        self.row_marked = self.row_saturated == False
+    # Start with all unsaturated row vertices
+    state.row_marked = state.row_saturated == False
 
-        # We keep trying to find new vertices reachable by augmenting paths.
-        while True:
-            found = self.col_marked.sum()
-            # Saturated column neighbors of rows from previous round
-            self.col_marked = np.any(self.matrix[self.row_marked] == 0, axis=0)
-            # Mark rows that are matched with columns found above
-            self.row_marked[np.any(self.marked[:, self.col_marked], axis=1)] = True
-            if self.col_marked.sum() == found:
-                return
+    # We keep trying to find new vertices reachable by augmenting paths.
+    while True:
+        found = state.col_marked.sum()
+        # Saturated column neighbors of rows from previous round
+        state.col_marked = np.any(state.matrix[state.row_marked] == 0, axis=0)
+        # Mark rows that are matched with columns found above
+        state.row_marked[np.any(state.marked[:, state.col_marked], axis=1)] = True
+        if state.col_marked.sum() == found:
+            return
 
-    def _aug_paths(self):
-        """Find an augmenting path if one exists from maximal matching."""
-        # Check unsaturated row vertices for augmenting paths
-        for row in np.where(self.row_saturated == False)[0]:
-            path_row, path_col = self._aug_path(row)
-            if not path_col:
+
+def aug_paths(state):
+    """Find an augmenting path if one exists from maximal matching."""
+    # Check unsaturated row vertices for augmenting paths
+    for row in np.where(state.row_saturated == False)[0]:
+        path_row, path_col = aug_path(state, row)
+        if not path_col:
+            continue
+        if not len(path_row + path_col) % 2:
+            for i in range(len(path_row) - 1):
+                state.marked[path_row[i], path_col[i]] = 1
+                state.marked[path_row[i], path_col[i + 1]] = 0
+            state.marked[path_row[-1], path_col[-1]] = 1
+            state.row_saturated[path_row[-1]] = state.col_saturated[path_col[0]] = True
+
+
+def aug_path(state, row):
+    """"
+    Recursively search for augmenting paths starting at row vertex 'row' in the
+    0-induced graph.
+    """
+
+    queue = deque()
+    queue.append(Node(previous=None, next_col=None, next_row=row))
+    visited_columns = set([])
+    last_col = None
+    path_row = []
+    path_col = []
+    found = False
+
+    # We proceed to search for an augmented path via a breadth-first search approach
+    while queue and not found:
+        current_node = queue.popleft()
+
+        # We now check every column to see if we can extend tentative augmented path with
+        # column vertex. We iterate over column vertex neighbors of the 0-induced graph
+        for col in np.where(state.matrix[current_node.next_row] == 0)[0]:
+
+            # We do not check vertices already on a tentative path
+            if col in visited_columns:
                 continue
-            if not len(path_row + path_col) % 2:
-                for i in range(len(path_row) - 1):
-                    self.marked[path_row[i], path_col[i]] = 1
-                    self.marked[path_row[i], path_col[i + 1]] = 0
-                self.marked[path_row[-1], path_col[-1]] = 1
-                self.row_saturated[path_row[-1]] = self.col_saturated[path_col[0]] = True
 
-    def _aug_path(self, row):
-        """"
-        Recursively search for augmenting paths starting at row vertex 'row' in the
-        0-induced graph.
-        """
+            # If col vertex is saturated, it we check to see if it can extend tentative path
+            if state.col_saturated[col]:
 
-        queue = deque()
-        queue.append(Node(previous=None, next_col=None, next_row=row))
-        visited_columns = set([])
-        last_col = None
-        path_row = []
-        path_col = []
-        found = False
+                # We find row vertex it is matched with
+                row_index = np.argmax(state.marked[:, col])
+                visited_columns.add(col)
 
-        # We proceed to search for an augmented path via a breadth-first search approach
-        while queue and not found:
-            current_node = queue.popleft()
+                # We extend the tentative augmented path via linked list
+                queue.append(Node(previous=current_node, next_row=row_index, next_col=col))
 
-            # We now check every column to see if we can extend tentative augmented path with
-            # column vertex. We iterate over column vertex neighbors of the 0-induced graph
-            for col in np.where(self.matrix[current_node.next_row] == 0)[0]:
+            else:
 
-                # We do not check vertices already on a tentative path
-                if col in visited_columns:
-                    continue
+                # We have found the end of an augmented path. We add column vertex.
+                last_col = Node(previous=current_node, next_row=None, next_col=col)
+                found = True
+                break
 
-                # If col vertex is saturated, it we check to see if it can extend tentative path
-                if self.col_saturated[col]:
+    # Recreate augmented path from linked list if possible
+    if last_col is not None:
 
-                    # We find row vertex it is matched with
-                    row_index = np.argmax(self.marked[:, col])
-                    visited_columns.add(col)
+        # add final column vertex
+        path_col.append(last_col.next_col)
+        last_col = last_col.previous
 
-                    # We extend the tentative augmented path via linked list
-                    queue.append(Node(previous=current_node, next_row=row_index, next_col=col))
-
-                else:
-
-                    # We have found the end of an augmented path. We add column vertex.
-                    last_col = Node(previous=current_node, next_row=None, next_col=col)
-                    found = True
-                    break
-
-        # Recreate augmented path from linked list if possible
-        if last_col is not None:
-
-            # add final column vertex
+        # iterate back through linked list
+        while last_col.previous is not None:
+            path_row.append(last_col.next_row)
             path_col.append(last_col.next_col)
             last_col = last_col.previous
 
-            # iterate back through linked list
-            while last_col.previous is not None:
-                path_row.append(last_col.next_row)
-                path_col.append(last_col.next_col)
-                last_col = last_col.previous
+        # add initial row vertex
+        path_row.append(last_col.next_row)
 
-            # add initial row vertex
-            path_row.append(last_col.next_row)
+    return path_row, path_col
 
-        return path_row, path_col
 
-    def _optimal_weight_matching(self):
-        """Main algorithm. Runs the Hungarian Algorithm."""
+def _optimal_weight_matching(matrix, transposed, maximize=False):
+    """Main algorithm. Runs the Hungarian Algorithm."""
+    if maximize:
+        state = State(marked=np.zeros(matrix.shape, dtype=bool),
+                      row_saturated=np.zeros(matrix.shape[0], dtype=bool),
+                      col_saturated=np.zeros(matrix.shape[1], dtype=bool),
+                      row_marked=np.zeros(matrix.shape[0], dtype=bool),
+                      col_marked=np.zeros(matrix.shape[1], dtype=bool),
+                      matrix=-matrix)
+    else:
+        state = State(marked=np.zeros(matrix.shape, dtype=bool),
+                      row_saturated=np.zeros(matrix.shape[0], dtype=bool),
+                      col_saturated=np.zeros(matrix.shape[1], dtype=bool),
+                      row_marked=np.zeros(matrix.shape[0], dtype=bool),
+                      col_marked=np.zeros(matrix.shape[1], dtype=bool),
+                      matrix=matrix)
+    while True:
+        # Subtract the smallest element in each row from every other entry in same row
+        # and compute maximal matching of resulting 0-inducted graph.
+        # (Steps 1 and 2 in Wikipedia)
+        maximal_matching(state)
 
-        while True:
-            # Subtract the smallest element in each row from every other entry in same row
-            # and compute maximal matching of resulting 0-inducted graph.
-            # (Steps 1 and 2 in Wikipedia)
-            self._maximal_matching()
+        # Find a minimum vertex cover of the 0-induced graph (Step 3 in Wikipedia)
+        min_vertex_cover(state)
 
-            # Find a minimum vertex cover of the 0-induced graph (Step 3 in Wikipedia)
-            self._min_vertex_cover()
+        # If all rows are saturated, find the maximum matching and stop
+        if (state.matrix.shape[0] - state.row_marked.sum()) + \
+                state.col_marked.sum() == state.matrix.shape[0]:
+            aug_paths(state)
+            break
 
-            # If all rows are saturated, find the maximum matching and stop
-            if (self.shape[0] - self.row_marked.sum()) + self.col_marked.sum() == self.shape[0]:
-                self._aug_paths()
-                break
+        # Find minimum value of uncovered edge weights
+        minval = np.min(state.matrix[state.row_marked][:, state.col_marked != True])
 
-            # Find minimum value of uncovered edge weights
-            minval = np.min(self.matrix[self.row_marked][:, self.col_marked != True])
+        # Adjust the matrix weights according to Hungarian algorithm (step 4 Wikipedia)
+        state.matrix[state.row_marked] -= minval
+        state.matrix[:, state.col_marked] += minval
 
-            # Adjust the matrix weights according to Hungarian algorithm (step 4 Wikipedia)
-            self.matrix[self.row_marked] -= minval
-            self.matrix[:, self.col_marked] += minval
+        # Reset process and run again
+        remove_covers(state)
 
-            # Reset process and run again
-            self._remove_covers()
-
-        # If we transposed the input so that it was wide, undo that now before returning answer.
-        if self.transposed:
-            return np.nonzero(self.marked.transpose() == 1)
-        else:
-            return np.nonzero(self.marked == 1)
+    # If we transposed the input so that it was wide, undo that now before returning answer.
+    if transposed:
+        return np.nonzero(state.marked.transpose() == 1)
+    else:
+        return np.nonzero(state.marked == 1)
