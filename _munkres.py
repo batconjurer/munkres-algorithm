@@ -5,7 +5,6 @@
 # License: 3-clause BSD
 
 import numpy as np
-import copy
 from collections import deque, namedtuple
 
 """
@@ -82,6 +81,7 @@ def linear_sum_assignment(cost_matrix, maximize=False):
 
     # This function should not have side effects on the cost matrix
     cost_matrix = cost_matrix.copy()
+    cost_matrix = np.asarray(cost_matrix)
 
     # Validation
 
@@ -125,6 +125,7 @@ class Munkres(object):
         self.col_marked = np.zeros(self.shape[1], dtype=bool)
         self.matrix = matrix
         self.transposed = transposed
+        self.col_saturated_size = 0
 
     def _maximal_matching(self):
         """Find a maximal matching greedily"""
@@ -136,9 +137,10 @@ class Munkres(object):
         # Iterating through each zero-valued matrix entry, if neither the row or column of the
         # entry has been marked, add entry to the matching and mark the its row and column as
         # being assigned.
-        for row, col in zip(*np.where(self.matrix == 0)):
+        for row, col in zip(*np.nonzero(self.matrix == 0)):
             if not self.row_saturated[row] and not self.col_saturated[col]:
                 self.marked[row, col] = self.row_saturated[row] = self.col_saturated[col] = True
+        self.col_saturated_size = self.col_saturated.sum()
 
     def _remove_covers(self):
         self.row_marked *= False
@@ -146,6 +148,7 @@ class Munkres(object):
         self.row_saturated *= False
         self.col_saturated *= False
         self.marked *= False
+        self.col_saturated_size = 0
 
     def _min_vertex_cover(self):
         """Find a minimum vertex cover of 0-induced graph"""
@@ -158,15 +161,17 @@ class Munkres(object):
             found = self.col_marked.sum()
             # Saturated column neighbors of rows from previous round
             self.col_marked = np.any(self.matrix[self.row_marked] == 0, axis=0)
-            # Mark rows that are matched with columns found above
-            self.row_marked[np.any(self.marked[:, self.col_marked], axis=1)] = True
-            if self.col_marked.sum() == found:
+            if found == self.col_marked.sum():
+                self.col_saturated_size = found
                 return
+            else:
+                # Mark rows that are matched with columns found above
+                self.row_marked[np.any(self.marked[:, self.col_marked], axis=1)] = True
 
     def _aug_paths(self):
         """Find an augmenting path if one exists from maximal matching."""
         # Check unsaturated row vertices for augmenting paths
-        for row in np.where(self.row_saturated == False)[0]:
+        for row in np.nonzero(self.row_saturated == False)[0]:
             path_row, path_col = self._aug_path(row)
             if not path_col:
                 continue
@@ -197,7 +202,7 @@ class Munkres(object):
 
             # We now check every column to see if we can extend tentative augmented path with
             # column vertex. We iterate over column vertex neighbors of the 0-induced graph
-            for col in np.where(self.matrix[current_node.next_row] == 0)[0]:
+            for col in np.nonzero(self.matrix[current_node.next_row] == 0)[0]:
 
                 # We do not check vertices already on a tentative path
                 if col in visited_columns:
@@ -251,7 +256,7 @@ class Munkres(object):
             self._min_vertex_cover()
 
             # If all rows are saturated, find the maximum matching and stop
-            if (self.shape[0] - self.row_marked.sum()) + self.col_marked.sum() == self.shape[0]:
+            if self.row_marked.sum() == self.col_saturated_size:
                 self._aug_paths()
                 break
 
