@@ -41,7 +41,8 @@ for i, j in product(sizes, repeat=2):
 
 # Display times in chart
 
-labels = ['{}x{}'.format(int(i/100), int(j/100)) for i, j in old_implementation_times.keys()]
+labels = ['{}x{}'.format(int(i/100), int(j/100))
+          for i, j in old_implementation_times.keys()]
 print(labels)
 
 ind = np.arange(len(sizes) ** 2) * 4  # the x locations for the groups

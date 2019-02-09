@@ -8,48 +8,54 @@ import numpy as np
 from collections import deque, namedtuple
 
 """
- Algorithm that solves the minimum / maximum weighted assignment problem (or linear sum assignment problem) 
- for bipartite graphs whose weighted bi-adjacency matrices are not necessarily square.
- 
+ Algorithm that solves the minimum / maximum weighted assignment problem
+ (or linear sum assignment problem) for bipartite graphs whose weighted
+ bi-adjacency matrices are not necessarily square.
+
  Let C be an n x m matrix. Consider a set of pairs M = {(i, j) in [n] x [m]},
- or equivalently, edges in the bipartite graph. We say that row i is assigned to column j if
- (i, j) in M. M is a matching if every row is assigned to at most one column and likewise each 
- column is assigned to at most one row. 
- 
- The problem is to find a matching M of size min(n, m) such that the sum of C[i,j] for (i, j) in M
- is minimized / maximized. 
- 
- Definitions: 
-    Many times we are performing operations on the graph whose edges are designated by
-    zero entries in the assignment matrix and non-zero entries are non-edge. We call this
-    graph the **0-induced graph**.
-    
-    If a row has been assigned a column, we say that it is **saturated**. In the 
-    algorithm, this is kept track of via the row_saturated and columns saturated vectors.
-    
-    Marking is done when we determine a minimum vertex cover of the 0-induced graph. We mark
-    all vertices reachable by augmenting paths from free row vertices. From the resulting set
-    the column vertices are kept and the complement of the row vertices are kept.
- 
+ or equivalently, edges in the bipartite graph. We say that row i is assigned
+ to column j if (i, j) in M. M is a matching if every row is assigned to at
+ most one column and likewise each column is assigned to at most one row.
+
+ The problem is to find a matching M of size min(n, m) such that the sum of
+ C[i,j] for (i, j) in M is minimized / maximized.
+
+ Definitions:
+    Many times we are performing operations on the graph whose edges are
+    designated by zero entries in the assignment matrix and non-zero entries
+    are non-edges. We call this graph the **0-induced graph**.
+
+    If a row has been assigned a column, we say that it is **saturated**. In
+    the algorithm, this is kept track of via the row_saturated and columns
+    saturated vectors.
+
+    Marking is done when we determine a minimum vertex cover of the 0-induced
+    graph. We mark all vertices reachable by augmenting paths from free row
+    vertices. From the resulting set the column vertices are kept and the
+    complement of the row vertices are kept.
+
  The algorithm consists of six main parts:
-    1. A pre-processing of the input matrix for easy access in the main algorithms
+    1. A pre-processing of the input matrix for easy access in the main
+       algorithms
     2. Adjust weights so that each row has a zero entry. (Step 1 Wikipedia)
-    3. The computation of a maximal matching, done greedily. If the maximal matching is maximum,
-       we terminate (Step 2 Wikipedia)
-    4. Otherwise, we compute a minimum vertex cover of the bipartite graph defined by zeros in
-       the weighted bi-adjacency matrix. (Step 3 in Wikipedia)
-    5. Subtract smallest unmarked element. Subtract from each other unmarked element and add to 
-       every doubly marked element.  Return to step 2 above. (Step 4 Wikipedia)
-    6. Once a result is found, an assignment (i.e. a maximum matching) is found from the current
-       known maximal matching by finding augmenting paths.
-    
+    3. The computation of a maximal matching, done greedily. If the maximal
+       matching is maximum, we terminate (Step 2 Wikipedia)
+    4. Otherwise, we compute a minimum vertex cover of the bipartite graph
+       defined by zeros in the weighted bi-adjacency matrix.
+       (Step 3 in Wikipedia)
+    5. Subtract smallest unmarked element. Subtract from each other unmarked
+       element and add to every doubly marked element.  Return to step 2 above.
+       (Step 4 Wikipedia)
+    6. Once a result is found, an assignment (i.e. a maximum matching) is found
+       from the current known maximal matching by finding augmenting paths.
+
 Parameters
      ----------
     cost_matrix : array
         The cost matrix of the bipartite graph.
     maximize : boolean
-        Specifies if the maximum weight matching should be computed. Default is False,
-        meaning that minimum weight matching is computed
+        Specifies if the maximum weight matching should be computed. Default is
+        False, meaning that minimum weight matching is computed
 Returns
  -------
     row_ind, col_ind : array
@@ -58,7 +64,7 @@ Returns
         as ``cost_matrix[row_ind, col_ind].sum()``. The row indices will be
         sorted; in the case of a square cost matrix they will be equal to
         ``numpy.arange(cost_matrix.shape[0])``.
-       
+
     References
     ----------
     1. Harold W. Kuhn. The Hungarian Method for the assignment problem.
@@ -68,7 +74,7 @@ Returns
     3. Munkres, J. Algorithms for the Assignment and Transportation Problems.
        *J. SIAM*, 5(1):32-38, March, 1957.
     4. https://en.wikipedia.org/wiki/Hungarian_algorithm
- 
+
 """
 
 Node = namedtuple('Node', 'previous next_row next_col')
@@ -76,7 +82,8 @@ Node = namedtuple('Node', 'previous next_row next_col')
 
 def linear_sum_assignment(cost_matrix, maximize=False):
     """
-       Outward facing function. Provides validation and accesses internal algorithm
+       Outward facing function. Provides validation and accesses internal
+        algorithm
     """
 
     # This function should not have side effects on the cost matrix
@@ -91,7 +98,8 @@ def linear_sum_assignment(cost_matrix, maximize=False):
 
     if not (np.issubdtype(cost_matrix.dtype, np.number) or
             cost_matrix.dtype == np.dtype(np.bool)):
-        raise ValueError("expected a matrix containing numerical entries, got %s"
+        raise ValueError("expected a matrix containing numerical entries,"
+                         " got %s"
                          % (cost_matrix.dtype,))
 
     if np.any(np.isinf(cost_matrix) | np.isnan(cost_matrix)):
@@ -100,7 +108,8 @@ def linear_sum_assignment(cost_matrix, maximize=False):
     if cost_matrix.dtype == np.dtype(np.bool):
         cost_matrix = cost_matrix.astype(np.int)
 
-    # The internal algorithm assumes that there are at least as many columns as rows
+    # The internal algorithm assumes that there are at
+    # least as many columns as rows
     if cost_matrix.shape[0] <= cost_matrix.shape[1]:
         return Munkres(cost_matrix,
                        transposed=False,
@@ -112,7 +121,10 @@ def linear_sum_assignment(cost_matrix, maximize=False):
 
 
 class Munkres(object):
-    """Class for finding maximum weight matchings and minimum vertex covers in bipartite graph"""
+    """
+    Class for finding maximum weight matchings and minimum vertex covers
+    in bipartite graph
+    """
 
     def __init__(self, matrix, transposed=False, maximize=False):
         if maximize:
@@ -134,12 +146,13 @@ class Munkres(object):
         # subtract it from each element in its row.
         self.matrix -= self.matrix.min(axis=1)[:, np.newaxis]
 
-        # Iterating through each zero-valued matrix entry, if neither the row or column of the
-        # entry has been marked, add entry to the matching and mark the its row and column as
-        # being assigned.
+        # Iterating through each zero-valued matrix entry, if neither the row
+        # or column of the entry has been marked, add entry to the matching
+        # and mark the its row and column as being assigned.
         for row, col in zip(*np.nonzero(self.matrix == 0)):
             if not self.row_saturated[row] and not self.col_saturated[col]:
-                self.marked[row, col] = self.row_saturated[row] = self.col_saturated[col] = True
+                self.marked[row, col] = self.row_saturated[row]\
+                    = self.col_saturated[col] = True
         self.col_saturated_size = self.col_saturated.sum()
 
     def _remove_covers(self):
@@ -166,7 +179,8 @@ class Munkres(object):
                 return
             else:
                 # Mark rows that are matched with columns found above
-                self.row_marked[np.any(self.marked[:, self.col_marked], axis=1)] = True
+                self.row_marked[np.any(self.marked[:, self.col_marked],
+                                       axis=1)] = True
 
     def _aug_paths(self):
         """Find an augmenting path if one exists from maximal matching."""
@@ -180,12 +194,13 @@ class Munkres(object):
                     self.marked[path_row[i], path_col[i]] = 1
                     self.marked[path_row[i], path_col[i + 1]] = 0
                 self.marked[path_row[-1], path_col[-1]] = 1
-                self.row_saturated[path_row[-1]] = self.col_saturated[path_col[0]] = True
+                self.row_saturated[path_row[-1]] = \
+                    self.col_saturated[path_col[0]] = True
 
     def _aug_path(self, row):
         """"
-        Recursively search for augmenting paths starting at row vertex 'row' in the
-        0-induced graph.
+        Recursively search for augmenting paths starting at row vertex 'row' in
+        the 0-induced graph.
         """
 
         queue = deque()
@@ -196,19 +211,22 @@ class Munkres(object):
         path_col = []
         found = False
 
-        # We proceed to search for an augmented path via a breadth-first search approach
+        # We proceed to search for an augmented path
+        # via a breadth-first search approach
         while queue and not found:
             current_node = queue.popleft()
 
-            # We now check every column to see if we can extend tentative augmented path with
-            # column vertex. We iterate over column vertex neighbors of the 0-induced graph
+            # We now check every column to see if we can extend
+            # tentative augmented path with column vertex. We iterate
+            # over column vertex neighbors of the 0-induced graph
             for col in np.nonzero(self.matrix[current_node.next_row] == 0)[0]:
 
                 # We do not check vertices already on a tentative path
                 if col in visited_columns:
                     continue
 
-                # If col vertex is saturated, it we check to see if it can extend tentative path
+                # If col vertex is saturated, it we check to see if
+                # it can extend tentative path
                 if self.col_saturated[col]:
 
                     # We find row vertex it is matched with
@@ -216,12 +234,17 @@ class Munkres(object):
                     visited_columns.add(col)
 
                     # We extend the tentative augmented path via linked list
-                    queue.append(Node(previous=current_node, next_row=row_index, next_col=col))
+                    queue.append(Node(previous=current_node,
+                                      next_row=row_index,
+                                      next_col=col))
 
                 else:
 
-                    # We have found the end of an augmented path. We add column vertex.
-                    last_col = Node(previous=current_node, next_row=None, next_col=col)
+                    # We have found the end of an augmented path.
+                    # We add column vertex.
+                    last_col = Node(previous=current_node,
+                                    next_row=None,
+                                    next_col=col)
                     found = True
                     break
 
@@ -247,12 +270,13 @@ class Munkres(object):
         """Main algorithm. Runs the Hungarian Algorithm."""
 
         while True:
-            # Subtract the smallest element in each row from every other entry in same row
-            # and compute maximal matching of resulting 0-inducted graph.
-            # (Steps 1 and 2 in Wikipedia)
+            # Subtract the smallest element in each row from every other
+            # entry in same row and compute maximal matching of resulting
+            # 0-inducted graph. (Steps 1 and 2 in Wikipedia)
             self._maximal_matching()
 
-            # Find a minimum vertex cover of the 0-induced graph (Step 3 in Wikipedia)
+            # Find a minimum vertex cover of the 0-induced graph
+            # (Step 3 in Wikipedia)
             self._min_vertex_cover()
 
             # If all rows are saturated, find the maximum matching and stop
@@ -261,16 +285,19 @@ class Munkres(object):
                 break
 
             # Find minimum value of uncovered edge weights
-            minval = np.min(self.matrix[self.row_marked][:, self.col_marked != True])
+            minval = np.min(self.matrix[self.row_marked][:, self.col_marked !=
+                                                         True])
 
-            # Adjust the matrix weights according to Hungarian algorithm (step 4 Wikipedia)
+            # Adjust the matrix weights according to Hungarian algorithm
+            # (step 4 Wikipedia)
             self.matrix[self.row_marked] -= minval
             self.matrix[:, self.col_marked] += minval
 
             # Reset process and run again
             self._remove_covers()
 
-        # If we transposed the input so that it was wide, undo that now before returning answer.
+        # If we transposed the input so that it was wide, undo that now
+        # before returning answer.
         if self.transposed:
             return np.nonzero(self.marked.transpose() == 1)
         else:
