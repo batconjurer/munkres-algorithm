@@ -229,6 +229,33 @@ def test_transposing():
     assert_array_equal(munkres_2[1], row_result)
 
 
+def test_case_that_violates_wikipedia_exposition():
+    """
+    Test the algorithm that finds a maximum matching from a maximal matching
+    via augmenting paths doesnt alter a maximal matching if it is maximum
+    """
+    # Original biadjacency matrix where zeros represent an edge and
+    # non-zero values represent  non-edges
+    munkres = _hungarian.linear_sum_assignment(np.array([[0, 0, 0, 0, 0],
+                                                         [0, 1, 1, 1, 1],
+                                                         [0, 1, 1, 1, 1]],
+                                                        dtype=float))
+
+    # The maximum matching that will be found by
+    # _maximal_matching method
+    #  [[0, 1, 0, 0, 0],
+    #   [1, 0, 0, 0, 0],
+    #   [0, 0, 0, 0, 0]]
+
+
+    marked = np.array([[0, 1, 0, 0, 0],
+                       [1, 0, 0, 0, 0],
+                       [0, 0, 1, 0, 0]],
+                      dtype=bool)
+
+    assert_array_equal(munkres, np.nonzero(marked == 1))
+
+
 def test_aug_paths_1():
     """
     Test the algorithm that finds a maximum matching from a maximal matching

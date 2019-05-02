@@ -1,4 +1,4 @@
-import _munkres
+import _hungarian
 from scipy.optimize import linear_sum_assignment as lsa
 from numpy.random import rand
 import numpy as np
@@ -30,7 +30,7 @@ for i, j in product(sizes, repeat=2):
 
 
     profile2.enable()
-    _munkres.linear_sum_assignment(cost_matrix)
+    _hungarian.linear_sum_assignment(cost_matrix)
     profile2.disable()
     s = io.StringIO()
     ps = pstats.Stats(profile2, stream=s)
@@ -40,6 +40,9 @@ for i, j in product(sizes, repeat=2):
 
 
 # Display times in chart
+print(old_implementation_times, new_implementation_times)
+
+"""
 
 labels = ['{}x{}'.format(int(i/100), int(j/100))
           for i, j in old_implementation_times.keys()]
@@ -61,3 +64,4 @@ ax.set_xticklabels(labels)
 ax.legend()
 
 plt.show()
+"""
