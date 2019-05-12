@@ -209,7 +209,7 @@ class Munkres(object):
     def _aug_paths(self):
         """Find an augmenting path if one exists from maximal matching."""
         # Check unsaturated row vertices for augmenting paths
-        for row in np.nonzero(self.row_saturated == False)[0]:
+        for row in np.where(self.row_saturated == False)[0]:
             path_row, path_col = self._aug_path(row)
             if not path_col:
                 continue
@@ -246,7 +246,7 @@ class Munkres(object):
             # We now check every column to see if we can extend
             # tentative augmented path with column vertex. We iterate
             # over column vertex neighbors of the 0-induced graph
-            for col in np.nonzero(self.matrix[current_node.next_row] == 0)[0]:
+            for col in np.where(self.matrix[current_node.next_row] == 0)[0]:
 
                 # We do not check vertices already on a tentative path
                 if col in visited_columns:
@@ -257,7 +257,7 @@ class Munkres(object):
                 if self.col_saturated[col]:
 
                     # We find row vertex it is matched with
-                    row_index = np.argmax(self.marked[:, col])
+                    row_index = np.where(self.marked[:, col])[0][0]
                     visited_columns.add(col)
 
                     # We extend the tentative augmented path via linked list
@@ -277,7 +277,6 @@ class Munkres(object):
 
         # Recreate augmented path from linked list if possible
         if last_col is not None:
-
             # add final column vertex
             path_col.append(last_col.next_col)
             last_col = last_col.previous
@@ -323,6 +322,6 @@ class Munkres(object):
         # If we transposed the input so that it was wide, undo that now
         # before returning answer.
         if self.transposed:
-            return np.nonzero(self.marked.transpose() == 1)
+            return np.where(self.marked.transpose() == 1)
         else:
-            return np.nonzero(self.marked == 1)
+            return np.where(self.marked == 1)

@@ -1,21 +1,25 @@
 import _hungarian
-from scipy.optimize import linear_sum_assignment as lsa
+#from scipy.optimize import linear_sum_assignment as lsa
 from numpy.random import rand
 import numpy as np
-from itertools import product
+#from itertools import product
 import cProfile
-import pstats
-import io
-import matplotlib.pyplot as plt
+#import pstats
+#import io
+#import matplotlib.pyplot as plt
 
 # Setup
-np.random.seed(232323)
+np.random.seed(161718)
+cost_matrix = np.random.rand(300, 300)
 sizes = [100, 300, 500, 700]
 old_implementation_times = {}
 new_implementation_times = {}
 
+
+
+cProfile.run("_hungarian.linear_sum_assignment(cost_matrix)", sort="tottime")
 # Loop over cases and extract times
-for i, j in product(sizes, repeat=2):
+"""for i, j in product(sizes, repeat=2):
     cost_matrix = rand(i, j)
     profile = cProfile.Profile()
     profile2 = cProfile.Profile()
@@ -42,7 +46,7 @@ for i, j in product(sizes, repeat=2):
 # Display times in chart
 print(old_implementation_times, new_implementation_times)
 
-"""
+
 
 labels = ['{}x{}'.format(int(i/100), int(j/100))
           for i, j in old_implementation_times.keys()]
